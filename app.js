@@ -5,7 +5,7 @@ const CFG = window.CONFIG;
 const DEMO = !CFG.clientId || /[?&]demo=1/.test(location.search);   // ?demo=1 mostra a lista sem login (teste visual)
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const ESCOPOS = ['Files.Read', 'User.Read'];
-const VERSAO = '10';
+const VERSAO = '11';
 const LOTE = 48;
 
 let catalogo = [];
@@ -347,7 +347,7 @@ function desenha() {
 function desenhaHome() {
   const ini = iniciados().slice(0, 5);               // os 5 últimos títulos iniciados (livros e audiobooks)
   $('#continuar').innerHTML = '<div class="secao"><h2>Continue de onde parou</h2></div>' +
-    (ini.length ? '<div class="continua">' + ini.map((i, n) => item(i, n * 50, statusIni(i)).replace(/<\/button>$/, '<span class="btn-x" role="button" data-ocultar="' + i.id + '" aria-label="Remover desta lista" title="Remover desta lista">✕</span></button>')).join('') + '</div>'
+    (ini.length ? '<div class="continua">' + ini.map((i, n) => item(i, n * 50, statusIni(i)).replace('<span class="btn-off', '<span class="btn-x" role="button" data-ocultar="' + i.id + '" aria-label="Remover desta lista" title="Remover desta lista">✕</span><span class="btn-off')).join('') + '</div>'
                 : '<div class="vazio-ini">Você ainda não começou nenhum título. Escolha um nas sugestões abaixo e ele aparecerá aqui, com o ponto em que você parou.</div>');
   desenhaBaixados();
   sugestoes('p'); sugestoes('a');
@@ -390,7 +390,7 @@ new IntersectionObserver(es => { if (es[0].isIntersecting && !$('#estante').hidd
 document.addEventListener('click', e => {
   const t = e.target;
   const ox = t.closest('[data-ocultar]');
-  if (ox) { e.preventDefault(); e.stopPropagation(); vibra(); const oc = le('ocultos') || {}; oc[ox.dataset.ocultar] = Date.now() + 1000; guarda('ocultos', oc); desenhaHome(); toast('Removido de "Continue de onde parou"'); return; }
+  if (ox) { e.preventDefault(); e.stopPropagation(); vibra(); const it = porId(ox.dataset.ocultar); if (!confirm('Quer mesmo remover “' + (it ? it.ti : 'este título') + '” de “Continue de onde parou”?' + String.fromCharCode(10, 10) + 'O ponto em que você parou fica guardado.')) return; const oc = le('ocultos') || {}; oc[ox.dataset.ocultar] = Date.now() + 1000; guarda('ocultos', oc); desenhaHome(); toast('Removido de "Continue de onde parou"'); return; }
   const bf = t.closest('[data-off-fm]');
   if (bf) { e.preventDefault(); e.stopPropagation(); vibra(); const k = bf.dataset.offFm, p = k.lastIndexOf('.'); cliqueOffFm(porId(k.slice(0, p)), k.slice(p + 1)); return; }
   const bo = t.closest('[data-off]');

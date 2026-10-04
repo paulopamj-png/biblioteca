@@ -275,9 +275,10 @@ h1{margin:3px 0 0;font-family:var(--f-titulo);font-size:1.5rem;font-weight:900;l
 .btn-off svg{width:20px;height:20px;stroke-width:2.3}
 .btn-off:active{transform:scale(.86)}
 .linha,.caixa{position:relative}
-.btn-x{position:absolute;top:7px;right:9px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:.8rem;line-height:1;cursor:pointer;z-index:5;
-  background:rgba(60,20,20,.12);color:#6e2a2a;box-shadow:inset 0 0 0 1px rgba(110,42,42,.35)}
-.btn-x:active{transform:scale(.85);background:rgba(110,42,42,.3)}
+.btn-x{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;margin-right:2px;border-radius:50%;font-size:.95rem;line-height:1;font-weight:700;cursor:pointer;position:relative;z-index:2;transition:transform .12s;
+  background:rgba(255,248,230,.9);color:#7a1f2b;box-shadow:inset 0 0 0 1.5px #c9972e,0 2px 5px rgba(0,0,0,.2)}
+.btn-x:active{transform:scale(.86)}
+@media (max-width:480px){.btn-x,.linha .btn-off,.caixa .btn-off{flex-basis:32px;width:32px;height:32px}.btn-x{margin-right:0}}
 .btn-off.baixando{background:conic-gradient(#c9972e var(--p),rgba(255,255,255,.5) 0)!important}
 .btn-off.baixando b{background:#fff8ea;color:#0e4339;width:27px;height:27px;border-radius:50%;display:grid;place-items:center}
 .caixa .btn-off{background:rgba(255,255,255,.8);color:#0e4339;box-shadow:inset 0 0 0 1.5px #c9972e,0 2px 5px rgba(0,0,0,.2)}
