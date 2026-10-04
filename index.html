@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<meta name="theme-color" content="#4a131b">
+<title>Minha Biblioteca</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Cinzel+Decorative:wght@700;900&family=Lora:ital,wght@0,500;0,600;1,500;1,600&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700;1,800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="fundo" aria-hidden="true"><i>“</i><i>¶</i><i>&amp;</i><i>❦</i><i>§</i><i>A</i><i>”</i></div>
+
+
+<header id="topo">
+  <div class="saudacao">
+    <small id="oi">Olá</small>
+    <h1 id="marca" class="foil">Minha Biblioteca</h1>
+  </div>
+  <button id="btnConta" class="avatar" aria-label="Conta">·</button>
+</header>
+
+<div class="busca">
+  <svg viewBox="0 0 24 24" class="ic"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+  <input id="q" type="search" enterkeyhint="search" placeholder="Buscar título ou autor" autocomplete="off" autocorrect="off" spellcheck="false">
+  <button id="limpa" aria-label="Limpar" hidden>✕</button>
+</div>
+
+<!-- categorias: duas "estantes" separadas, cada uma com sua cor -->
+<div id="cats" class="cats">
+  <button class="cat aud" data-ir="audio" aria-label="Audiobooks">
+    <span class="ilus">
+      <svg viewBox="0 0 200 190" aria-hidden="true">
+        <defs>
+          <linearGradient id="fHb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbe3a0"/><stop offset="1" stop-color="#c8923a"/></linearGradient>
+          <linearGradient id="fCp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff6de"/><stop offset="1" stop-color="#e3c98f"/></linearGradient>
+        </defs>
+        <path d="M30 112 C30 8 170 8 170 112" fill="none" stroke="url(#fHb)" stroke-width="17" stroke-linecap="round"/>
+        <g class="cupL"><rect x="8" y="92" width="56" height="86" rx="27" fill="url(#fCp)"/><circle cx="38" cy="135" r="20" fill="#1c6b67" stroke="#c8923a" stroke-width="3"/>
+          <g fill="#f8e3a8"><rect class="w w1" x="28" y="127" width="5" height="16" rx="2.5"/><rect class="w w2" x="36" y="121" width="5" height="28" rx="2.5"/><rect class="w w3" x="44" y="129" width="5" height="12" rx="2.5"/></g></g>
+        <g class="cupR"><rect x="136" y="92" width="56" height="86" rx="27" fill="url(#fCp)"/><circle cx="162" cy="135" r="20" fill="#1c6b67" stroke="#c8923a" stroke-width="3"/>
+          <g fill="#f8e3a8"><rect class="w w3" x="152" y="127" width="5" height="16" rx="2.5"/><rect class="w w1" x="160" y="121" width="5" height="28" rx="2.5"/><rect class="w w2" x="168" y="129" width="5" height="12" rx="2.5"/></g></g>
+      </svg>
+    </span>
+    <span class="ctx"><b class="foil">Audiobooks</b><small id="infoAudio">—</small></span>
+  </button>
+  <button class="cat liv" data-ir="pdf" aria-label="Livros">
+    <span class="ilus">
+      <svg viewBox="0 0 70 90" aria-hidden="true">
+        <defs>
+          <linearGradient id="lCv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e0705a"/><stop offset="1" stop-color="#8c3228"/></linearGradient>
+          <linearGradient id="lGd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbe3a0"/><stop offset="1" stop-color="#c8923a"/></linearGradient>
+        </defs>
+        <rect x="15" y="12" width="48" height="72" rx="4" fill="#f6ead0"/>
+        <path d="M59 15v66M56 15v66M53 15v66" stroke="#d8c698" stroke-width="1"/>
+        <g class="capaL"><rect x="8" y="6" width="48" height="74" rx="4" fill="url(#lCv)"/>
+          <rect x="8" y="6" width="9" height="74" rx="4" fill="#000" opacity=".25"/>
+          <rect x="10.5" y="20" width="4" height="2" fill="url(#lGd)"/><rect x="10.5" y="64" width="4" height="2" fill="url(#lGd)"/>
+          <rect x="22" y="13" width="28" height="60" rx="3" fill="none" stroke="url(#lGd)" stroke-width="1.2" opacity=".85"/>
+          <g transform="translate(36 43) scale(.42) translate(-32 -22)" fill="none" stroke="url(#lGd)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M32 8 C24 3 12 3 4 6 V38 C12 35 24 35 32 40 C40 35 52 35 60 38 V6 C52 3 40 3 32 8 Z M32 8 V40"/></g>
+          <path d="M43 6h8v30l-4-5-4 5z" fill="#e0314f"/></g>
+      </svg>
+    </span>
+    <span class="ctx"><b class="foil">Livros</b><small id="infoPdf">—</small></span>
+  </button>
+</div>
+
+<main id="conteudo">
+  <section id="home" class="tela">
+    <div id="continuar"></div>
+    <div id="sugLivros"></div>
+    <div id="sugAudio"></div>
+  </section>
+
+  <section id="estante" class="tela" hidden>
+    <div class="cab"><h2 id="tituloEstante"></h2><span id="resumo"></span></div>
+    <div id="lista"></div>
+    <div id="fim"></div>
+  </section>
+
+  <div id="aviso" hidden></div>
+</main>
+
+<!-- mini player -->
+<div id="mini" hidden>
+  <div class="mprog"><i id="mBarra"></i></div>
+  <button class="mabre" id="mAbre">
+    <span class="mcapa" id="mCapa"></span>
+    <span class="mtxt"><b id="mTitulo"></b><small id="mAutor"></small></span>
+  </button>
+  <button id="mPlay" class="mplay" aria-label="Tocar/Pausar"></button>
+</div>
+
+<!-- navegação: só o botão Início, centralizado -->
+<nav id="nav">
+  <button class="ini on" aria-label="Início">
+    <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg></span>
+    <span class="rot foil">Início</span>
+  </button>
+</nav>
+
+<!-- player completo -->
+<div id="sheet" aria-hidden="true">
+  <div class="sfundo" id="sFundo"></div>
+  <div class="scont">
+    <button id="sFecha" class="sbaixa" aria-label="Minimizar"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+    <div id="sCapa" class="scapa"></div>
+    <div class="stxt"><h3 id="sTitulo"></h3><p id="sAutor"></p></div>
+    <input id="pSeek" type="range" min="0" max="1000" value="0">
+    <div class="ptempos"><span id="pAtual">0:00</span><span id="pRest">-0:00</span></div>
+    <div class="ctrl">
+      <button id="pVolta" aria-label="Voltar 30 segundos"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6"/><text x="12" y="17" text-anchor="middle">30</text></svg></button>
+      <button id="pPlay" class="grande" aria-label="Tocar/Pausar"></button>
+      <button id="pAvanca" aria-label="Avançar 30 segundos"><svg viewBox="0 0 24 24" style="transform:scaleX(-1)"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6"/><text x="12" y="17" text-anchor="middle" style="transform:scaleX(-1);transform-origin:12px 0">30</text></svg></button>
+    </div>
+    <div class="extras">
+      <button id="pVel" class="pil">1×</button>
+      <button id="pSono" class="pil">☾ Dormir</button>
+      <button id="pFechar" class="pil">Parar</button>
+    </div>
+  </div>
+</div>
+
+<!-- leitor de EPUB (texto que se ajusta à tela) -->
+<div id="leitorE" data-tema="papel" hidden>
+  <div class="etopo">
+    <button id="eVoltar" class="rd" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="ltxt"><b id="eTitulo"></b><small id="eCap">—</small></div>
+    <button id="eTocBtn" class="rd" aria-label="Índice"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+    <button id="eTema" class="rd" aria-label="Tema">◐</button>
+    <button id="eMenos" class="rd">A−</button>
+    <button id="eMais" class="rd">A+</button>
+  </div>
+  <div class="ecorpo"><div id="eArea"></div><div id="eToque"></div></div>
+  <div class="erodape"><span id="ePct">0%</span><div id="eBarra"><i id="eProg"></i></div></div>
+  <div id="eIndice" hidden><div class="eind-cab"><b>Índice</b><button id="eIndFecha" class="rd">✕</button></div><div id="eIndLista"></div></div>
+  <div id="eCarrega">Carregando…</div>
+</div>
+
+<!-- leitor de PDF -->
+<div id="leitor" hidden>
+  <div class="ltopo">
+    <button id="lVoltar" class="rd" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="ltxt"><b id="lTitulo"></b><small id="lPag">—</small></div>
+    <button id="lMenos" class="rd">A−</button>
+    <button id="lMais" class="rd">A+</button>
+  </div>
+  <div id="lPaginas"></div>
+  <div id="lBarra"><i id="lProg"></i></div>
+  <div id="lCarrega">Carregando…</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script><script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

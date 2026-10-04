@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b95040"/><stop offset="1" stop-color="#591f1a"/></linearGradient>
+    <linearGradient id="o" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8de96"/><stop offset="1" stop-color="#b8862f"/></linearGradient>
+    <radialGradient id="h" cx=".25" cy=".1" r=".9"><stop offset="0" stop-color="#ffb08a" stop-opacity=".38"/><stop offset="1" stop-color="#ffb08a" stop-opacity="0"/></radialGradient>
+    <pattern id="t" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="7" fill="#000" opacity=".06"/></pattern>
+  </defs>
+  <rect width="200" height="300" fill="url(#c)"/>
+  <rect width="200" height="300" fill="url(#t)"/>
+  <rect width="200" height="300" fill="url(#h)"/>
+  <rect width="28" height="300" fill="#000" opacity=".3"/>
+  <rect x="28" width="2" height="300" fill="#000" opacity=".28"/>
+  <rect x="6" y="42" width="16" height="3" fill="url(#o)"/>
+  <rect x="6" y="255" width="16" height="3" fill="url(#o)"/>
+  <rect x="42" y="20" width="146" height="260" rx="8" fill="none" stroke="url(#o)" stroke-width="2" opacity=".8"/>
+  <rect x="48" y="26" width="134" height="248" rx="5" fill="none" stroke="url(#o)" stroke-width=".8" opacity=".5"/>
+  <g transform="translate(115 142) scale(1.55) translate(-32 -22)" fill="none" stroke="url(#o)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 8 C24 3 12 3 4 6 V38 C12 35 24 35 32 40 C40 35 52 35 60 38 V6 C52 3 40 3 32 8 Z M32 8 V40"/>
+    <path d="M10 14 C16 12 23 12 28 15 M10 22 C16 20 23 20 28 23 M54 14 C48 12 41 12 36 15 M54 22 C48 20 41 20 36 23" stroke-width="1.5" opacity=".7"/>
+  </g>
+  <path d="M85 205 h60 M100 213 h30" stroke="url(#o)" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>
+  <path d="M115 193 l4 5 l-4 5 l-4 -5 z" fill="url(#o)" opacity=".85"/>
+  <path d="M150 0 h20 v96 l-10 -13 l-10 13 z" fill="#d12a48"/>
+  <path d="M150 0 h20 v96 l-10 -13 l-10 13 z" fill="#000" opacity=".12"/>
+</svg>
