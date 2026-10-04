@@ -1,4 +1,4 @@
-const V = 'bib-v9';
+const V = 'bib-v10';
 const OFFLINE = 'bib-offline';                       // downloads do usuario: nunca apagar ao atualizar o app
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'config.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'capa-padrao.svg', 'capa-audio.svg', 'fone-marca.svg'];
 const CDN = ['https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js',

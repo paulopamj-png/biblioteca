@@ -5,7 +5,7 @@ const CFG = window.CONFIG;
 const DEMO = !CFG.clientId || /[?&]demo=1/.test(location.search);   // ?demo=1 mostra a lista sem login (teste visual)
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const ESCOPOS = ['Files.Read', 'User.Read'];
-const VERSAO = '9';
+const VERSAO = '10';
 const LOTE = 48;
 
 let catalogo = [];
@@ -118,10 +118,12 @@ const item = (i, atraso, status) => i.t === 'a' ? caixa(i, atraso, status) : lin
 
 /* ---------- o que o leitor já começou ---------- */
 function iniciados() {
-  const out = [];
+  const out = [], oc = le('ocultos') || {};
   for (const i of catalogo) {
-    if (i.t === 'a') { const p = le('prog:' + i.id); if (p && p.t > 5) out.push([i, p.quando || 0]); }
-    else if ((le('pct:' + i.id) || 0) > 0 || (le('pag:' + i.id) || 0) > 1) out.push([i, le('qdo:' + i.id) || 1]);
+    let q = 0;
+    if (i.t === 'a') { const p = le('prog:' + i.id); if (p && p.t > 5) q = p.quando || 1; }
+    else if ((le('pct:' + i.id) || 0) > 0 || (le('pag:' + i.id) || 0) > 1) q = le('qdo:' + i.id) || 1;
+    if (q && !(oc[i.id] && q <= oc[i.id])) out.push([i, q]);     // removido da lista: só volta se for aberto de novo
   }
   return out.sort((a, b) => b[1] - a[1]).map(x => x[0]);
 }
@@ -345,7 +347,7 @@ function desenha() {
 function desenhaHome() {
   const ini = iniciados().slice(0, 5);               // os 5 últimos títulos iniciados (livros e audiobooks)
   $('#continuar').innerHTML = '<div class="secao"><h2>Continue de onde parou</h2></div>' +
-    (ini.length ? '<div class="continua">' + ini.map((i, n) => item(i, n * 50, statusIni(i))).join('') + '</div>'
+    (ini.length ? '<div class="continua">' + ini.map((i, n) => item(i, n * 50, statusIni(i)).replace(/<\/button>$/, '<span class="btn-x" role="button" data-ocultar="' + i.id + '" aria-label="Remover desta lista" title="Remover desta lista">✕</span></button>')).join('') + '</div>'
                 : '<div class="vazio-ini">Você ainda não começou nenhum título. Escolha um nas sugestões abaixo e ele aparecerá aqui, com o ponto em que você parou.</div>');
   desenhaBaixados();
   sugestoes('p'); sugestoes('a');
@@ -387,6 +389,8 @@ new IntersectionObserver(es => { if (es[0].isIntersecting && !$('#estante').hidd
 /* ---------- eventos ---------- */
 document.addEventListener('click', e => {
   const t = e.target;
+  const ox = t.closest('[data-ocultar]');
+  if (ox) { e.preventDefault(); e.stopPropagation(); vibra(); const oc = le('ocultos') || {}; oc[ox.dataset.ocultar] = Date.now() + 1000; guarda('ocultos', oc); desenhaHome(); toast('Removido de "Continue de onde parou"'); return; }
   const bf = t.closest('[data-off-fm]');
   if (bf) { e.preventDefault(); e.stopPropagation(); vibra(); const k = bf.dataset.offFm, p = k.lastIndexOf('.'); cliqueOffFm(porId(k.slice(0, p)), k.slice(p + 1)); return; }
   const bo = t.closest('[data-off]');
