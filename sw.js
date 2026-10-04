@@ -1,4 +1,4 @@
-const V = 'bib-v7';
+const V = 'bib-v8';
 const OFFLINE = 'bib-offline';                       // downloads do usuario: nunca apagar ao atualizar o app
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'config.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'capa-padrao.svg', 'capa-audio.svg', 'fone-marca.svg'];
 const CDN = ['https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js',
@@ -25,7 +25,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (u.origin !== location.origin) return;           // Graph/OneDrive passam direto
-  e.respondWith(fetch(e.request).then(r => {
+  e.respondWith(fetch(e.request, { cache: 'no-cache' }).then(r => {      // sempre confere com o servidor se há versão nova
     const copia = r.clone();
     caches.open(V).then(c => c.put(e.request, copia));
     return r;
