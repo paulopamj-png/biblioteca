@@ -286,6 +286,17 @@ h1{margin:3px 0 0;font-family:var(--f-titulo);font-size:1.5rem;font-weight:900;l
   padding:11px 20px;border-radius:999px;background:#33090f;color:#f6e3a6;border:1.5px solid #c9972e;font-family:var(--f-serif);font-size:.92rem;box-shadow:0 10px 24px rgba(0,0,0,.45);transition:opacity .3s,transform .3s;pointer-events:none}
 #toast.ver{opacity:1;transform:translateX(-50%)}
 
+
+/* encerrar / fechar / versao */
+.mfecha{flex:0 0 40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.28);color:#f6e3a6;box-shadow:inset 0 0 0 1.5px rgba(242,201,93,.6)}
+.mfecha svg{width:18px;height:18px;stroke-width:2.4}
+.mfecha:active{transform:scale(.88)}
+.rd.fechar{width:auto;padding:0 14px 0 8px;gap:2px;border-radius:999px;font-family:var(--f-serif);font-size:.9rem;display:flex;align-items:center}
+.rd.fechar svg{width:20px;height:20px}
+.ltopo .btn-off,.etopo .btn-off{flex:0 0 42px;width:42px;height:42px;background:rgba(0,0,0,.3);color:#f6e3a6;box-shadow:inset 0 0 0 1.5px rgba(242,201,93,.6)}
+.ltopo .btn-off.sim,.etopo .btn-off.sim{color:#5a1620}
+.versao{margin:34px 0 4px;text-align:center;font-size:.75rem;font-style:italic;color:var(--umber);opacity:.7}
+
 @media (max-width:340px){.cats{gap:10px}.cat b{font-size:.9rem}h1{font-size:1.3rem}}
 @media (min-width:760px){
   .cats{max-width:640px;gap:24px}

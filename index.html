@@ -76,6 +76,7 @@
     <div id="baixadosSec"></div>
     <div id="sugLivros"></div>
     <div id="sugAudio"></div>
+    <p id="versao" class="versao"></p>
   </section>
 
   <section id="estante" class="tela" hidden>
@@ -96,6 +97,7 @@
     <span class="mcapa" id="mCapa"></span>
     <span class="mtxt"><b id="mTitulo"></b><small id="mAutor"></small></span>
   </button>
+  <button id="mFecha" class="mfecha" aria-label="Encerrar o audiobook" title="Encerrar o audiobook"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <button id="mPlay" class="mplay" aria-label="Tocar/Pausar"></button>
 </div>
 
@@ -125,7 +127,7 @@
       <button id="pVel" class="pil">1×</button>
       <button id="pSono" class="pil">☾ Dormir</button>
       <button id="pOff" class="pil">⬇ Baixar para ouvir offline</button>
-      <button id="pFechar" class="pil">Parar</button>
+      <button id="pFechar" class="pil">⏹ Encerrar audiobook</button>
     </div>
   </div>
 </div>
@@ -133,10 +135,11 @@
 <!-- leitor de EPUB (texto que se ajusta à tela) -->
 <div id="leitorE" data-tema="papel" hidden>
   <div class="etopo">
-    <button id="eVoltar" class="rd" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button id="eVoltar" class="rd fechar" aria-label="Fechar a leitura"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg><span>Fechar</span></button>
     <div class="ltxt"><b id="eTitulo"></b><small id="eCap">—</small></div>
     <button id="eTocBtn" class="rd" aria-label="Índice"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
     <button id="eTema" class="rd" aria-label="Tema">◐</button>
+    <span id="eOffBox"></span>
     <button id="eMenos" class="rd">A−</button>
     <button id="eMais" class="rd">A+</button>
   </div>
@@ -149,8 +152,9 @@
 <!-- leitor de PDF -->
 <div id="leitor" hidden>
   <div class="ltopo">
-    <button id="lVoltar" class="rd" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button id="lVoltar" class="rd fechar" aria-label="Fechar a leitura"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg><span>Fechar</span></button>
     <div class="ltxt"><b id="lTitulo"></b><small id="lPag">—</small></div>
+    <span id="lOffBox"></span>
     <button id="lMenos" class="rd">A−</button>
     <button id="lMais" class="rd">A+</button>
   </div>

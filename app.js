@@ -207,9 +207,10 @@ async function urlAudioOuLivro(rel) {
 async function removeBaixado(i, perguntar = true) {
   const bytes = (baixadosMapa()[i.id] || {}).bytes || 0;
   if (perguntar && !confirm('Remover "' + i.ti + '" do tablet?\n\nIsso libera ' + fmtMB(bytes) + ' de espaço. O título continua na sua biblioteca e você pode baixar de novo quando quiser.')) return false;
+  if (atual && atual.id === i.id) encerraAudio();                       // libera o arquivo que está em uso
   try { await (await caches.open(CACHE_OFF)).delete(chaveOff(i)); } catch (e) {}
   const m = baixadosMapa(); delete m[i.id]; guarda('off', m);
-  pintaOff(i.id); baixadosHome(); toast('Removido do tablet: ' + i.ti);
+  pintaOff(i.id); baixadosHome(); toast('Removido do tablet: ' + i.ti + (bytes ? ' · liberou ' + fmtMB(bytes) : ''));
   return true;
 }
 function cliqueOff(i) {
@@ -239,10 +240,16 @@ function baixadosHome() { if (!$('#home').hidden) desenhaBaixados(); }
 async function desenhaBaixados() {
   const m = baixadosMapa(), box = $('#baixadosSec');
   const itens = Object.keys(m).map(porId).filter(Boolean).sort((a, b) => (m[b.id].quando || 0) - (m[a.id].quando || 0));
-  if (!itens.length) { box.innerHTML = ''; return; }
   const total = itens.reduce((s, i) => s + (m[i.id].bytes || 0), 0);
+  let uso = '';
+  try { if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); uso = ' · o app ocupa ' + fmtMB(e.usage || 0) + ' no tablet'; } } catch (e) {}
+  if (!itens.length) {
+    box.innerHTML = '<div class="secao"><h2>Baixados no tablet</h2></div>' +
+      '<div class="vazio-ini">Nenhum título baixado ainda. Toque no ícone <b>↓</b> de um livro ou audiobook (na capa, ao lado do play, ou dentro do leitor) para guardá-lo no tablet e usar <b>sem internet</b>. Quando não quiser mais, é só remover aqui e o espaço é liberado.</div>';
+    return;
+  }
   box.innerHTML = '<div class="secao"><h2>Baixados no tablet</h2><button class="sorteia" data-off-todos="1">Remover todos</button></div>' +
-    '<p class="resumo-off">' + itens.length + (itens.length === 1 ? ' título' : ' títulos') + ' · ' + fmtMB(total) + ' de espaço usado. Toque no ✓ para remover.</p>' +
+    '<p class="resumo-off">' + itens.length + (itens.length === 1 ? ' título' : ' títulos') + ' · ' + fmtMB(total) + uso + '. Toque no ✓ de um título para removê-lo.</p>' +
     '<div class="continua">' + itens.map((i, n) => item(i, n * 40, fmtMB(m[i.id].bytes || 0) + ' no tablet')).join('') + '</div>';
 }
 async function removeTodos() {
@@ -444,11 +451,15 @@ $('#pSono').onclick = () => {
 $('#pOff').onclick = () => { if (atual) cliqueOff(atual); };
 $('#sFecha').onclick = () => abreSheet(false);
 $('#mAbre').onclick = () => abreSheet(true);
-$('#pFechar').onclick = () => {
-  salvaProgresso(true); au.pause(); au.removeAttribute('src'); atual = null; limpaSono();
+function encerraAudio() {
+  salvaProgresso(true); au.pause(); au.removeAttribute('src'); try { au.load(); } catch (e) {}
+  atual = null; limpaSono();
   if (blobAtual) { URL.revokeObjectURL(blobAtual); blobAtual = null; }
+  if ('mediaSession' in navigator) { try { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = 'none'; } catch (e) {} }
   abreSheet(false); $('#mini').hidden = true; document.body.classList.remove('com-mini'); desenha();
-};
+}
+$('#pFechar').onclick = encerraAudio;
+$('#mFecha').onclick = e => { e.stopPropagation(); vibra(); encerraAudio(); };
 window.addEventListener('pagehide', () => salvaProgresso(true));
 function mediaSession(i) {
   if (!('mediaSession' in navigator)) return;
@@ -464,7 +475,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let pdf = null, pdfItem = null, zoom = 1, observador = null, ratio = 1.41, ultPag = 0;
 
 async function abrePdf(i) {
-  pdfItem = i; ultPag = 0; $('#leitor').hidden = false; document.body.style.overflow = 'hidden';
+  pdfItem = i; ultPag = 0; $('#lOffBox').innerHTML = btnOff(i); $('#leitor').hidden = false; document.body.style.overflow = 'hidden';
   $('#lTitulo').textContent = i.ti; $('#lPag').textContent = i.au || ''; $('#lPaginas').innerHTML = ''; $('#lProg').style.width = '0';
   $('#lCarrega').hidden = false; $('#lCarrega').textContent = 'Carregando…';
   zoom = le('zoom') || 1;
@@ -528,7 +539,7 @@ async function garanteEpubJs() {
   await carregaScript('https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js');
 }
 async function abreEpub(i, urlLocal) {
-  eItem = i; $('#leitorE').hidden = false; document.body.style.overflow = 'hidden';
+  eItem = i; $('#eOffBox').innerHTML = btnOff(i); $('#leitorE').hidden = false; document.body.style.overflow = 'hidden';
   $('#eTitulo').textContent = i.ti; $('#eCap').textContent = i.au || ''; $('#ePct').textContent = '0%'; $('#eProg').style.width = '0';
   $('#eCarrega').hidden = false; $('#eCarrega').textContent = 'Carregando…'; $('#eIndice').hidden = true;
   $('#leitorE').classList.remove('imersivo'); $('#leitorE').dataset.tema = eTema;
@@ -603,7 +614,14 @@ document.addEventListener('keydown', e => {
 
 /* ---------- partida ---------- */
 (async function main() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  $('#versao').textContent = 'Minha Biblioteca · versão 7';
+  if ('serviceWorker' in navigator) {
+    const tinhaControle = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+    let recarregou = false;                                   // nova versão assumiu o controle: recarrega uma vez
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (tinhaControle && !recarregou) { recarregou = true; location.reload(); } });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {}); });
+  }
   $('#oi').textContent = saudacao();
   try {
     await iniciaLogin();
