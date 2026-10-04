@@ -53,7 +53,8 @@ async function graph(caminho, opts = {}) {
   if (!r.ok) { const e = new Error('OneDrive respondeu ' + r.status); e.status = r.status; throw e; }
   return r;
 }
-const caminhoItem = rel => '/me/drive/root:/' + [CFG.pasta, ...rel.split('/')].map(encodeURIComponent).join('/');
+// CFG.pasta pode ter subpastas ("BOOKS/Biblioteca"); cada parte do caminho é codificada separadamente
+const caminhoItem = rel => '/me/drive/root:/' + [...CFG.pasta.split('/'), ...rel.split('/')].map(encodeURIComponent).join('/');
 
 /* ---------- catálogo ---------- */
 async function carregaCatalogo() {
