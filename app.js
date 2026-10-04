@@ -50,7 +50,10 @@ async function token() {
 async function graph(caminho, opts = {}) {
   const t = await token();
   const r = await fetch(GRAPH + caminho, { ...opts, headers: { Authorization: 'Bearer ' + t, ...(opts.headers || {}) } });
-  if (!r.ok) { const e = new Error('OneDrive respondeu ' + r.status); e.status = r.status; throw e; }
+  if (!r.ok) {
+    let onde = caminho; try { onde = decodeURIComponent(caminho).replace('/me/drive/root:/', '').replace(/:\/content$/, '').replace(/\?select=.*$/, ''); } catch (x) {}
+    const e = new Error('OneDrive respondeu ' + r.status + ' para "' + onde + '"'); e.status = r.status; throw e;
+  }
   return r;
 }
 // CFG.pasta pode ter subpastas ("BOOKS/Biblioteca"); cada parte do caminho é codificada separadamente
