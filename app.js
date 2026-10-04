@@ -45,7 +45,10 @@ async function iniciaLogin() {
 }
 async function token() {
   try { return (await clienteMsal.acquireTokenSilent({ scopes: ESCOPOS, account: conta })).accessToken; }
-  catch (e) { await clienteMsal.acquireTokenRedirect({ scopes: ESCOPOS }); throw e; }
+  catch (e) {
+    if (!navigator.onLine) throw new Error('Sem internet');
+    await clienteMsal.acquireTokenRedirect({ scopes: ESCOPOS }); throw e;
+  }
 }
 async function graph(caminho, opts = {}) {
   const t = await token();
@@ -62,6 +65,7 @@ const caminhoItem = rel => '/me/drive/root:/' + [...CFG.pasta.split('/'), ...rel
 /* ---------- catálogo ---------- */
 async function carregaCatalogo() {
   if (DEMO) { catalogo = await (await fetch('catalogo.json')).json(); return; }
+  if (!navigator.onLine && le('catalogo')) { catalogo = le('catalogo'); aviso('<b>Sem internet.</b> Você pode ler e ouvir os títulos que baixou para o tablet.'); return; }
   try {
     catalogo = await (await graph(caminhoItem('catalogo.json') + ':/content')).json();
     guarda('catalogo', catalogo);
@@ -77,8 +81,8 @@ const porId = id => catalogo.find(i => i.id === id);
 /* ---------- peças visuais ---------- */
 // Cada título mostra só a capa (a real, ou a imagem padrão de livro), o nome e, abaixo, o autor em fonte menor.
 const foto = i => i.c ? '<img class="foto" alt="" loading="lazy" decoding="async" src="capas/' + i.id + '.jpg" onload="this.classList.add(&quot;ok&quot;)" onerror="this.remove()">' : '';
-function capa(i, prog) {
-  return '<div class="capa">' + foto(i) + (prog ? '<i class="prog" style="width:' + prog + '%"></i>' : '') + '</div>';
+function capa(i, prog, comBotao) {
+  return '<div class="capa">' + foto(i) + (prog ? '<i class="prog" style="width:' + prog + '%"></i>' : '') + (comBotao ? btnOff(i) : '') + '</div>';
 }
 function progresso(i) {
   if (i.t === 'a') { const p = le('prog:' + i.id); return p && i.d ? Math.min(100, p.t / (i.d * 60) * 100) : 0; }
@@ -86,7 +90,7 @@ function progresso(i) {
   const n = le('pag:' + i.id); return n > 1 && i.pg ? Math.min(100, n / i.pg * 100) : 0;
 }
 function cartao(i, atraso) {
-  return '<button class="card" data-id="' + i.id + '" style="animation-delay:' + (atraso || 0) + 'ms">' + capa(i, progresso(i)) +
+  return '<button class="card" data-id="' + i.id + '" style="animation-delay:' + (atraso || 0) + 'ms">' + capa(i, progresso(i), true) +
     '<span class="nm">' + esc(i.ti) + '</span><span class="au">' + esc(i.au || 'Autor não informado') + '</span></button>';
 }
 function linha(i, atraso, status) {
@@ -94,7 +98,7 @@ function linha(i, atraso, status) {
   const pr = status ? progresso(i) : 0;
   return '<button class="linha ' + i.t + '" data-id="' + i.id + '" style="animation-delay:' + Math.min(atraso || 0, 300) + 'ms">' + capa(i, 0) +
     '<span class="dd"><b>' + esc(i.ti) + '</b><small>' + esc(i.au || 'Autor não informado') + '</small><span class="mt">' + meta + '</span>' +
-    (pr ? '<span class="barra"><i style="width:' + pr + '%"></i></span>' : '') + '</span></button>';
+    (pr ? '<span class="barra"><i style="width:' + pr + '%"></i></span>' : '') + '</span>' + btnOff(i) + '</button>';
 }
 
 const FONE_MINI = '<svg viewBox="0 0 24 24"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="3" y="14" width="4" height="7" rx="2"/><rect x="17" y="14" width="4" height="7" rx="2"/></svg>';
@@ -106,7 +110,7 @@ function caixa(i, atraso, status) {
     '<span class="ab-capa">' + foto(i) + '</span>' +
     '<span class="ab-info"><b>' + esc(i.ti) + '</b><small>' + esc(i.au || 'Autor não informado') + '</small>' +
     '<span class="ab-meta">' + FONE_MINI + esc(meta) + '</span>' + (pr ? '<span class="barra"><i style="width:' + pr + '%"></i></span>' : '') + '</span>' +
-    '<span class="ab-play">' + IC.play + '</span></button>';
+    btnOff(i) + '<span class="ab-play">' + IC.play + '</span></button>';
 }
 const item = (i, atraso, status) => i.t === 'a' ? caixa(i, atraso, status) : linha(i, atraso, status);
 
@@ -125,6 +129,128 @@ function statusIni(i) {
   if (i.t === 'a') return 'Parou em ' + fmtTempo(le('prog:' + i.id).t) + (pr ? ' · ' + pr + '%' : '');
   if (i.fm === 'e') return 'Leitura em ' + pr + '%';
   return 'Página ' + le('pag:' + i.id) + (i.pg ? ' de ' + i.pg : '') + (pr ? ' · ' + pr + '%' : '');
+}
+
+/* ---------- baixar para ler/ouvir sem internet ---------- */
+// Os arquivos baixados ficam no Cache Storage do navegador ("bib-offline"); "Remover" apaga de lá e libera o espaço.
+const CACHE_OFF = 'bib-offline';
+const chaveOff = i => 'offline/' + i.id;
+const baixadosMapa = () => le('off') || {};
+const estaBaixado = i => !!baixadosMapa()[i.id];
+const emDownload = {};                                  // id -> { pct, ctrl }
+const fmtMB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : b >= 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+const ICO_BAIXAR = '<svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>';
+const ICO_OK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function btnOff(i) {
+  const d = emDownload[i.id], b = estaBaixado(i);
+  const cls = d ? 'baixando' : b ? 'sim' : 'nao';
+  const rot = d ? 'Cancelar o download' : b ? 'Remover do tablet' : 'Baixar para ler ou ouvir sem internet';
+  return '<span class="btn-off ' + cls + '" role="button" data-off="' + i.id + '" style="--p:' + (d ? Math.round(d.pct) : 0) + '%" aria-label="' + rot + '" title="' + rot + '">' +
+    (d ? '<b>' + Math.round(d.pct) + '</b>' : b ? ICO_OK : ICO_BAIXAR) + '</span>';
+}
+function pintaOff(id) {
+  const i = porId(id); if (!i) return;
+  document.querySelectorAll('[data-off="' + id + '"]').forEach(el => { el.outerHTML = btnOff(i); });
+  if (atual && atual.id === id) pintaOffPlayer();
+}
+function pintaOffPlayer() {
+  if (!atual) return;
+  const d = emDownload[atual.id], b = estaBaixado(atual);
+  $('#pOff').textContent = d ? 'Baixando ' + Math.round(d.pct) + '% (tocar cancela)' : b ? '✓ No tablet · Remover' : '⬇ Baixar para ouvir offline';
+}
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false; requestAnimationFrame(() => t.classList.add('ver'));
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.classList.remove('ver'); setTimeout(() => { t.hidden = true; }, 350); }, 3400);
+}
+async function baixa(i) {
+  if (DEMO) return alert('Modo demonstração: não há o que baixar.');
+  if (!navigator.onLine) return alert('Sem internet agora. Conecte-se ao Wi-Fi para baixar este título.');
+  const rel = (i.t === 'a' ? 'audio/' : 'livros/') + i.f;
+  const ctrl = new AbortController(); emDownload[i.id] = { pct: 0, ctrl }; pintaOff(i.id);
+  const cache = await caches.open(CACHE_OFF);
+  try {
+    const total = (await (await graph(caminhoItem(rel) + '?select=size')).json()).size || 0;
+    let r;
+    try { r = await fetch(GRAPH + caminhoItem(rel) + ':/content', { headers: { Authorization: 'Bearer ' + await token() }, signal: ctrl.signal }); }
+    catch (e) {                                               // plano B: link temporário já autorizado
+      if (ctrl.signal.aborted) throw e;
+      r = await fetch(await urlAudioOuLivro(rel), { signal: ctrl.signal });
+    }
+    if (!r.ok) throw new Error('OneDrive respondeu ' + r.status);
+    const leitor = r.body.getReader(); let feito = 0, ultimo = 0;
+    const fluxo = new ReadableStream({
+      async pull(c) {
+        const { done, value } = await leitor.read();
+        if (done) { c.close(); return; }
+        feito += value.length; emDownload[i.id].pct = total ? feito / total * 100 : 0;
+        if (Date.now() - ultimo > 500) { ultimo = Date.now(); pintaOff(i.id); }
+        c.enqueue(value);
+      },
+      cancel(m) { return leitor.cancel(m); }
+    });
+    await cache.put(chaveOff(i), new Response(fluxo, { headers: { 'Content-Type': i.t === 'a' ? 'audio/mp4' : i.fm === 'e' ? 'application/epub+zip' : 'application/pdf' } }));
+    if (total && feito !== total) throw new Error('o arquivo veio incompleto');
+    const m = baixadosMapa(); m[i.id] = { bytes: feito, quando: Date.now() }; guarda('off', m);
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+    toast('Baixado: ' + i.ti + ' (' + fmtMB(feito) + ')');
+  } catch (e) {
+    try { await cache.delete(chaveOff(i)); } catch (x) {}
+    if (ctrl.signal.aborted) toast('Download cancelado');
+    else alert('Não consegui baixar "' + i.ti + '".\n' + (e.message === 'Failed to fetch' ? 'O navegador não conseguiu receber o arquivo. Verifique a conexão e tente de novo.' : e.message));
+  } finally { delete emDownload[i.id]; pintaOff(i.id); baixadosHome(); }
+}
+async function urlAudioOuLivro(rel) {
+  const j = await (await graph(caminhoItem(rel) + '?select=id,@microsoft.graph.downloadUrl')).json();
+  if (!j['@microsoft.graph.downloadUrl']) throw new Error('Sem URL de download');
+  return j['@microsoft.graph.downloadUrl'];
+}
+async function removeBaixado(i, perguntar = true) {
+  const bytes = (baixadosMapa()[i.id] || {}).bytes || 0;
+  if (perguntar && !confirm('Remover "' + i.ti + '" do tablet?\n\nIsso libera ' + fmtMB(bytes) + ' de espaço. O título continua na sua biblioteca e você pode baixar de novo quando quiser.')) return false;
+  try { await (await caches.open(CACHE_OFF)).delete(chaveOff(i)); } catch (e) {}
+  const m = baixadosMapa(); delete m[i.id]; guarda('off', m);
+  pintaOff(i.id); baixadosHome(); toast('Removido do tablet: ' + i.ti);
+  return true;
+}
+function cliqueOff(i) {
+  if (!i) return;
+  if (emDownload[i.id]) { emDownload[i.id].ctrl.abort(); return; }
+  if (estaBaixado(i)) removeBaixado(i); else baixa(i);
+}
+async function doCache(i) { try { return await (await caches.open(CACHE_OFF)).match(chaveOff(i)); } catch (e) { return null; } }
+async function dadosLivro(i) {                         // ArrayBuffer do livro: do tablet se baixado; senão, do OneDrive
+  if (estaBaixado(i)) {
+    const r = await doCache(i);
+    if (r) return r.arrayBuffer();
+    const m = baixadosMapa(); delete m[i.id]; guarda('off', m);          // sumiu do armazenamento: corrige o registro
+  }
+  if (!navigator.onLine) throw new Error('Sem internet. Baixe o título antes (ícone ↓) para ler offline.');
+  return (await graph(caminhoItem('livros/' + i.f) + ':/content')).arrayBuffer();
+}
+async function reconciliaBaixados() {                  // confere se o que está registrado como baixado existe mesmo
+  try {
+    const ks = new Set((await (await caches.open(CACHE_OFF)).keys()).map(r => new URL(r.url).pathname.split('/').slice(-2).join('/')));
+    const m = baixadosMapa(); let mudou = false;
+    Object.keys(m).forEach(id => { if (!ks.has('offline/' + id)) { delete m[id]; mudou = true; } });
+    if (mudou) guarda('off', m);
+  } catch (e) {}
+}
+function baixadosHome() { if (!$('#home').hidden) desenhaBaixados(); }
+async function desenhaBaixados() {
+  const m = baixadosMapa(), box = $('#baixadosSec');
+  const itens = Object.keys(m).map(porId).filter(Boolean).sort((a, b) => (m[b.id].quando || 0) - (m[a.id].quando || 0));
+  if (!itens.length) { box.innerHTML = ''; return; }
+  const total = itens.reduce((s, i) => s + (m[i.id].bytes || 0), 0);
+  box.innerHTML = '<div class="secao"><h2>Baixados no tablet</h2><button class="sorteia" data-off-todos="1">Remover todos</button></div>' +
+    '<p class="resumo-off">' + itens.length + (itens.length === 1 ? ' título' : ' títulos') + ' · ' + fmtMB(total) + ' de espaço usado. Toque no ✓ para remover.</p>' +
+    '<div class="continua">' + itens.map((i, n) => item(i, n * 40, fmtMB(m[i.id].bytes || 0) + ' no tablet')).join('') + '</div>';
+}
+async function removeTodos() {
+  const m = baixadosMapa(), itens = Object.keys(m).map(porId).filter(Boolean);
+  if (!itens.length) return;
+  if (!confirm('Remover todos os ' + itens.length + ' títulos baixados do tablet?\nIsso libera ' + fmtMB(itens.reduce((s, i) => s + (m[i.id].bytes || 0), 0)) + '. A biblioteca no OneDrive não é afetada.')) return;
+  for (const i of itens) await removeBaixado(i, false);
+  toast('Todos os downloads foram removidos');
 }
 
 /* ---------- telas ---------- */
@@ -152,6 +278,7 @@ function desenhaHome() {
   $('#continuar').innerHTML = '<div class="secao"><h2>Continue de onde parou</h2></div>' +
     (ini.length ? '<div class="continua">' + ini.map((i, n) => item(i, n * 50, statusIni(i))).join('') + '</div>'
                 : '<div class="vazio-ini">Você ainda não começou nenhum título. Escolha um nas sugestões abaixo e ele aparecerá aqui, com o ponto em que você parou.</div>');
+  desenhaBaixados();
   sugestoes('p'); sugestoes('a');
 }
 function sorteio(lista, n) {
@@ -191,6 +318,9 @@ new IntersectionObserver(es => { if (es[0].isIntersecting && !$('#estante').hidd
 /* ---------- eventos ---------- */
 document.addEventListener('click', e => {
   const t = e.target;
+  const bo = t.closest('[data-off]');
+  if (bo) { e.preventDefault(); e.stopPropagation(); vibra(); cliqueOff(porId(bo.dataset.off)); return; }
+  if (t.closest('[data-off-todos]')) { vibra(); removeTodos(); return; }
   const ir = t.closest('[data-ir]');
   if (ir) {
     vibra(); const dest = ir.dataset.ir;
@@ -222,6 +352,7 @@ $('#btnConta').onclick = () => {
 function abre(i) {
   if (!i) return;
   if (DEMO) { alert('Modo demonstração: os arquivos ainda não estão ligados ao OneDrive.\n\n' + i.ti + (i.au ? '\n' + i.au : '')); return; }
+  if (!navigator.onLine && !estaBaixado(i)) { alert('Sem internet agora, e este título ainda não foi baixado.\n\nQuando estiver no Wi-Fi, toque no ícone ↓ do título para baixá-lo e poder abrir offline.'); return; }
   if (i.t === 'a') tocaAudio(i); else if (i.fm === 'e') abreEpub(i); else abrePdf(i);
 }
 
@@ -237,11 +368,19 @@ async function urlAudio(i) {
   if (!j['@microsoft.graph.downloadUrl']) throw new Error('Sem URL de download');
   return j['@microsoft.graph.downloadUrl'];
 }
+let blobAtual = null;
+async function fonteAudio(i) {                       // do tablet (se baixado) ou streaming do OneDrive
+  if (blobAtual) { URL.revokeObjectURL(blobAtual); blobAtual = null; }
+  if (estaBaixado(i)) { const r = await doCache(i); if (r) { blobAtual = URL.createObjectURL(await r.blob()); return blobAtual; } }
+  if (!navigator.onLine) throw new Error('Sem internet. Baixe o audiobook antes para ouvir offline.');
+  return urlAudio(i);
+}
 function pintaPlayer(i) {
   $('#sCapa').innerHTML = foto(i);
   $('#sTitulo').textContent = i.ti; $('#sAutor').textContent = i.au || '';
   $('#mCapa').innerHTML = foto(i);
   $('#mTitulo').textContent = i.ti; $('#mAutor').textContent = i.au || '';
+  pintaOffPlayer();
 }
 async function tocaAudio(i) {
   if (atual && atual.id === i.id) { abreSheet(true); return; }
@@ -250,7 +389,7 @@ async function tocaAudio(i) {
   $('#mini').hidden = false; document.body.classList.add('com-mini');
   setPlay(false); abreSheet(true);
   try {
-    au.src = await urlAudio(i);
+    au.src = await fonteAudio(i);
     const p = le('prog:' + i.id);
     au.playbackRate = le('vel') || 1; $('#pVel').textContent = au.playbackRate + '×';
     au.onloadedmetadata = () => { if (p && p.t > 5 && p.t < au.duration - 5) au.currentTime = p.t; au.onloadedmetadata = null; au.play().catch(() => {}); };
@@ -262,7 +401,7 @@ function abreSheet(v) { const s = $('#sheet'); s.classList.toggle('aberto', v); 
 
 // A URL temporária do OneDrive expira (~1 h): se o streaming falhar, renova e retoma do mesmo ponto.
 au.addEventListener('error', async () => {
-  if (!atual) return;
+  if (!atual || blobAtual) return;                       // arquivo do tablet não expira
   const t = au.currentTime;
   try { au.src = await urlAudio(atual); au.onloadedmetadata = () => { au.currentTime = t; au.play().catch(() => {}); au.onloadedmetadata = null; }; } catch (e) {}
 });
@@ -275,7 +414,12 @@ au.addEventListener('timeupdate', () => {
   $('#pAtual').textContent = fmtTempo(au.currentTime); $('#pRest').textContent = '-' + fmtTempo(au.duration - au.currentTime);
   salvaProgresso(false);
 });
-au.addEventListener('ended', () => { if (atual) guarda('prog:' + atual.id, { t: 0, quando: Date.now() }); });
+au.addEventListener('ended', () => {
+  if (!atual) return;
+  guarda('prog:' + atual.id, { t: 0, quando: Date.now() });
+  const i = atual;
+  if (estaBaixado(i)) setTimeout(() => { if (confirm('Você terminou "' + i.ti + '".\n\nRemover do tablet para liberar espaço?')) removeBaixado(i, false); }, 600);
+});
 function salvaProgresso(forca) {
   if (!atual || !au.currentTime) return;
   if (!forca && Date.now() - ultimoSalvo < 5000) return;
@@ -297,10 +441,12 @@ $('#pSono').onclick = () => {
   const tic = () => { const r = sonoFim - Date.now(); if (r <= 0) { au.pause(); limpaSono(); } else $('#pSono').textContent = '☾ ' + Math.ceil(r / 60000) + ' min'; };
   tic(); sonoTimer = setInterval(tic, 15000);
 };
+$('#pOff').onclick = () => { if (atual) cliqueOff(atual); };
 $('#sFecha').onclick = () => abreSheet(false);
 $('#mAbre').onclick = () => abreSheet(true);
 $('#pFechar').onclick = () => {
   salvaProgresso(true); au.pause(); au.removeAttribute('src'); atual = null; limpaSono();
+  if (blobAtual) { URL.revokeObjectURL(blobAtual); blobAtual = null; }
   abreSheet(false); $('#mini').hidden = true; document.body.classList.remove('com-mini'); desenha();
 };
 window.addEventListener('pagehide', () => salvaProgresso(true));
@@ -323,8 +469,7 @@ async function abrePdf(i) {
   $('#lCarrega').hidden = false; $('#lCarrega').textContent = 'Carregando…';
   zoom = le('zoom') || 1;
   try {
-    const r = await graph(caminhoItem('livros/' + i.f) + ':/content');
-    pdf = await pdfjsLib.getDocument({ data: await r.arrayBuffer() }).promise;
+    pdf = await pdfjsLib.getDocument({ data: await dadosLivro(i) }).promise;
     const v = (await pdf.getPage(1)).getViewport({ scale: 1 }); ratio = v.height / v.width;
     $('#lCarrega').hidden = true;
     montaPaginas();
@@ -389,7 +534,7 @@ async function abreEpub(i, urlLocal) {
   $('#leitorE').classList.remove('imersivo'); $('#leitorE').dataset.tema = eTema;
   try {
     await garanteEpubJs();
-    const dados = urlLocal ? await (await fetch(urlLocal)).arrayBuffer() : await (await graph(caminhoItem('livros/' + i.f) + ':/content')).arrayBuffer();
+    const dados = urlLocal ? await (await fetch(urlLocal)).arrayBuffer() : await dadosLivro(i);
     eLivro = ePub(dados);
     eRend = eLivro.renderTo('eArea', { width: '100%', height: '100%', flow: 'paginated', spread: 'none', minSpreadWidth: 99999 });
     Object.entries(TEMAS_E).forEach(([k, t]) => eRend.themes.register(k, {
@@ -468,6 +613,7 @@ document.addEventListener('keydown', e => {
       aviso('<b>Bem-vindo!</b> Toque no botão redondo no canto superior para entrar com sua conta Microsoft e abrir a biblioteca.');
       return;
     }
+    await reconciliaBaixados();
     await carregaCatalogo();
     if (DEMO) aviso('<b>Modo demonstração.</b> Esta é a lista real dos seus títulos; os arquivos serão ligados ao OneDrive depois do registro no Azure.');
     desenha();
