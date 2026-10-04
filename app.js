@@ -5,6 +5,7 @@ const CFG = window.CONFIG;
 const DEMO = !CFG.clientId || /[?&]demo=1/.test(location.search);   // ?demo=1 mostra a lista sem login (teste visual)
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const ESCOPOS = ['Files.Read', 'User.Read'];
+const VERSAO = '9';
 const LOTE = 48;
 
 let catalogo = [];
@@ -84,9 +85,10 @@ const foto = i => i.c ? '<img class="foto" alt="" loading="lazy" decoding="async
 function capa(i, prog, comBotao) {
   return '<div class="capa">' + foto(i) + (prog ? '<i class="prog" style="width:' + prog + '%"></i>' : '') + (comBotao ? btnOff(i) : '') + '</div>';
 }
+const fmProg = i => i.t === 'a' ? 'a' : (ultFm(i) || (i.fm === 'e' ? 'e' : 'p'));
 function progresso(i) {
   if (i.t === 'a') { const p = le('prog:' + i.id); return p && i.d ? Math.min(100, p.t / (i.d * 60) * 100) : 0; }
-  if (i.fm === 'e') return le('pct:' + i.id) || 0;
+  if (fmProg(i) === 'e') return le('pct:' + i.id) || 0;
   const n = le('pag:' + i.id); return n > 1 && i.pg ? Math.min(100, n / i.pg * 100) : 0;
 }
 function cartao(i, atraso) {
@@ -119,54 +121,73 @@ function iniciados() {
   const out = [];
   for (const i of catalogo) {
     if (i.t === 'a') { const p = le('prog:' + i.id); if (p && p.t > 5) out.push([i, p.quando || 0]); }
-    else if (i.fm === 'e') { if ((le('pct:' + i.id) || 0) > 0) out.push([i, le('qdo:' + i.id) || 1]); }
-    else { const n = le('pag:' + i.id); if (n > 1) out.push([i, le('qdo:' + i.id) || 1]); }
+    else if ((le('pct:' + i.id) || 0) > 0 || (le('pag:' + i.id) || 0) > 1) out.push([i, le('qdo:' + i.id) || 1]);
   }
   return out.sort((a, b) => b[1] - a[1]).map(x => x[0]);
 }
 function statusIni(i) {
   const pr = Math.round(progresso(i));
   if (i.t === 'a') return 'Parou em ' + fmtTempo(le('prog:' + i.id).t) + (pr ? ' · ' + pr + '%' : '');
-  if (i.fm === 'e') return 'Leitura em ' + pr + '%';
-  return 'Página ' + le('pag:' + i.id) + (i.pg ? ' de ' + i.pg : '') + (pr ? ' · ' + pr + '%' : '');
+  if (fmProg(i) === 'e') return 'Leitura em ' + pr + '%' + (formatosDe(i).length > 1 ? ' · EPUB' : '');
+  return 'Página ' + le('pag:' + i.id) + (i.pg ? ' de ' + i.pg : '') + (pr ? ' · ' + pr + '%' : '') + (formatosDe(i).length > 1 ? ' · PDF' : '');
 }
 
-/* ---------- baixar para ler/ouvir sem internet ---------- */
+/* ---------- formatos (EPUB/PDF) e downloads para usar sem internet ---------- */
 // Os arquivos baixados ficam no Cache Storage do navegador ("bib-offline"); "Remover" apaga de lá e libera o espaço.
 const CACHE_OFF = 'bib-offline';
-const chaveOff = i => 'offline/' + i.id;
+const NOME_FM = { e: 'EPUB', p: 'PDF', a: 'áudio' };
+const temEpub = i => i.t === 'p' && (i.fm === 'e' || !!i.ep);
+const temPdf = i => i.t === 'p' && i.fm !== 'e';
+const formatosDe = i => i.t === 'a' ? ['a'] : [...(temEpub(i) ? ['e'] : []), ...(temPdf(i) ? ['p'] : [])];
+const arquivoDe = (i, fm) => (i.t === 'a' || fm === 'p' || (fm === 'e' && i.fm === 'e')) ? i.f : i.f.replace(/\.pdf$/i, '.epub');
+const pastaDe = fm => fm === 'a' ? 'audio/' : 'livros/';
+const fmPadrao = i => { const f = formatosDe(i); if (f.length === 1) return f[0]; const p = le('fmtpref'); return p && f.includes(p) ? p : 'e'; };
+const ultFm = i => { const f = formatosDe(i), u = le('ult:' + i.id); return u && f.includes(u) ? u : (f.length === 1 ? f[0] : null); };
+const chaveOff = (i, fm) => 'offline/' + i.id + '.' + fm;
 const baixadosMapa = () => le('off') || {};
-const estaBaixado = i => !!baixadosMapa()[i.id];
-const emDownload = {};                                  // id -> { pct, ctrl }
-const fmtMB = b => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : b >= 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+const estaBaixado = (i, fm) => { const m = baixadosMapa(); return fm ? !!m[i.id + '.' + fm] : formatosDe(i).some(f => !!m[i.id + '.' + f]); };
+const bytesBaixados = (i, fm) => { const m = baixadosMapa(); return (fm ? [fm] : formatosDe(i)).reduce((s, f) => s + ((m[i.id + '.' + f] || {}).bytes || 0), 0); };
+const emDownload = {};                                  // id -> { fm, pct, ctrl }
+const fmtMB = b => !b ? '0 MB' : b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : b >= 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 const ICO_BAIXAR = '<svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>';
 const ICO_OK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-function btnOff(i) {
+function marcaBtn(attr, valor, estado, pct, rotulos) {
+  const cls = estado, rot = rotulos[estado];
+  return '<span class="btn-off ' + cls + '" role="button" ' + attr + '="' + valor + '" style="--p:' + Math.round(pct) + '%" aria-label="' + rot + '" title="' + rot + '">' +
+    (estado === 'baixando' ? '<b>' + Math.round(pct) + '</b>' : estado === 'sim' ? ICO_OK : ICO_BAIXAR) + '</span>';
+}
+function btnOff(i) {                                   // botao do título (todos os formatos)
   const d = emDownload[i.id], b = estaBaixado(i);
-  const cls = d ? 'baixando' : b ? 'sim' : 'nao';
-  const rot = d ? 'Cancelar o download' : b ? 'Remover do tablet' : 'Baixar para ler ou ouvir sem internet';
-  return '<span class="btn-off ' + cls + '" role="button" data-off="' + i.id + '" style="--p:' + (d ? Math.round(d.pct) : 0) + '%" aria-label="' + rot + '" title="' + rot + '">' +
-    (d ? '<b>' + Math.round(d.pct) + '</b>' : b ? ICO_OK : ICO_BAIXAR) + '</span>';
+  return marcaBtn('data-off', i.id, d ? 'baixando' : b ? 'sim' : 'nao', d ? d.pct : 0,
+    { baixando: 'Cancelar o download', sim: 'Remover do tablet', nao: 'Baixar para ler ou ouvir sem internet' });
+}
+function btnOffFm(i, fm) {                              // botao de um formato específico
+  const d = emDownload[i.id] && emDownload[i.id].fm === fm ? emDownload[i.id] : null, b = estaBaixado(i, fm);
+  return marcaBtn('data-off-fm', i.id + '.' + fm, d ? 'baixando' : b ? 'sim' : 'nao', d ? d.pct : 0,
+    { baixando: 'Cancelar o download', sim: 'Remover este formato do tablet', nao: 'Baixar ' + NOME_FM[fm] + ' para usar sem internet' });
 }
 function pintaOff(id) {
   const i = porId(id); if (!i) return;
   document.querySelectorAll('[data-off="' + id + '"]').forEach(el => { el.outerHTML = btnOff(i); });
+  document.querySelectorAll('[data-off-fm^="' + id + '."]').forEach(el => { const fm = el.dataset.offFm.split('.').pop(); el.outerHTML = btnOffFm(i, fm); });
   if (atual && atual.id === id) pintaOffPlayer();
+  if (escolhaItem && escolhaItem.id === id) renderEscolha();
 }
 function pintaOffPlayer() {
   if (!atual) return;
-  const d = emDownload[atual.id], b = estaBaixado(atual);
+  const d = emDownload[atual.id], b = estaBaixado(atual, 'a');
   $('#pOff').textContent = d ? 'Baixando ' + Math.round(d.pct) + '% (tocar cancela)' : b ? '✓ No tablet · Remover' : '⬇ Baixar para ouvir offline';
 }
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.hidden = false; requestAnimationFrame(() => t.classList.add('ver'));
   clearTimeout(toast.t); toast.t = setTimeout(() => { t.classList.remove('ver'); setTimeout(() => { t.hidden = true; }, 350); }, 3400);
 }
-async function baixa(i) {
+async function baixa(i, fm) {
+  fm = fm || fmPadrao(i);
   if (DEMO) return alert('Modo demonstração: não há o que baixar.');
   if (!navigator.onLine) return alert('Sem internet agora. Conecte-se ao Wi-Fi para baixar este título.');
-  const rel = (i.t === 'a' ? 'audio/' : 'livros/') + i.f;
-  const ctrl = new AbortController(); emDownload[i.id] = { pct: 0, ctrl }; pintaOff(i.id);
+  const rel = pastaDe(fm) + arquivoDe(i, fm);
+  const ctrl = new AbortController(); emDownload[i.id] = { fm, pct: 0, ctrl }; pintaOff(i.id);
   const cache = await caches.open(CACHE_OFF);
   try {
     const total = (await (await graph(caminhoItem(rel) + '?select=size')).json()).size || 0;
@@ -174,7 +195,7 @@ async function baixa(i) {
     try { r = await fetch(GRAPH + caminhoItem(rel) + ':/content', { headers: { Authorization: 'Bearer ' + await token() }, signal: ctrl.signal }); }
     catch (e) {                                               // plano B: link temporário já autorizado
       if (ctrl.signal.aborted) throw e;
-      r = await fetch(await urlAudioOuLivro(rel), { signal: ctrl.signal });
+      r = await fetch(await urlDireta(rel), { signal: ctrl.signal });
     }
     if (!r.ok) throw new Error('OneDrive respondeu ' + r.status);
     const leitor = r.body.getReader(); let feito = 0, ultimo = 0;
@@ -188,59 +209,76 @@ async function baixa(i) {
       },
       cancel(m) { return leitor.cancel(m); }
     });
-    await cache.put(chaveOff(i), new Response(fluxo, { headers: { 'Content-Type': i.t === 'a' ? 'audio/mp4' : i.fm === 'e' ? 'application/epub+zip' : 'application/pdf' } }));
+    await cache.put(chaveOff(i, fm), new Response(fluxo, { headers: { 'Content-Type': fm === 'a' ? 'audio/mp4' : fm === 'e' ? 'application/epub+zip' : 'application/pdf' } }));
     if (total && feito !== total) throw new Error('o arquivo veio incompleto');
-    const m = baixadosMapa(); m[i.id] = { bytes: feito, quando: Date.now() }; guarda('off', m);
+    const m = baixadosMapa(); m[i.id + '.' + fm] = { bytes: feito, quando: Date.now() }; guarda('off', m);
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
-    toast('Baixado: ' + i.ti + ' (' + fmtMB(feito) + ')');
+    toast('Baixado: ' + i.ti + (formatosDe(i).length > 1 ? ' (' + NOME_FM[fm] + ')' : '') + ' · ' + fmtMB(feito));
   } catch (e) {
-    try { await cache.delete(chaveOff(i)); } catch (x) {}
+    try { await cache.delete(chaveOff(i, fm)); } catch (x) {}
     if (ctrl.signal.aborted) toast('Download cancelado');
     else alert('Não consegui baixar "' + i.ti + '".\n' + (e.message === 'Failed to fetch' ? 'O navegador não conseguiu receber o arquivo. Verifique a conexão e tente de novo.' : e.message));
   } finally { delete emDownload[i.id]; pintaOff(i.id); baixadosHome(); }
 }
-async function urlAudioOuLivro(rel) {
+async function urlDireta(rel) {
   const j = await (await graph(caminhoItem(rel) + '?select=id,@microsoft.graph.downloadUrl')).json();
   if (!j['@microsoft.graph.downloadUrl']) throw new Error('Sem URL de download');
   return j['@microsoft.graph.downloadUrl'];
 }
-async function removeBaixado(i, perguntar = true) {
-  const bytes = (baixadosMapa()[i.id] || {}).bytes || 0;
-  if (perguntar && !confirm('Remover "' + i.ti + '" do tablet?\n\nIsso libera ' + fmtMB(bytes) + ' de espaço. O título continua na sua biblioteca e você pode baixar de novo quando quiser.')) return false;
-  if (atual && atual.id === i.id) encerraAudio();                       // libera o arquivo que está em uso
-  try { await (await caches.open(CACHE_OFF)).delete(chaveOff(i)); } catch (e) {}
-  const m = baixadosMapa(); delete m[i.id]; guarda('off', m);
-  pintaOff(i.id); baixadosHome(); toast('Removido do tablet: ' + i.ti + (bytes ? ' · liberou ' + fmtMB(bytes) : ''));
+async function removeBaixado(i, fm, perguntar = true) {   // fm vazio = remove todos os formatos baixados do título
+  const m = baixadosMapa();
+  const fs = (fm ? [fm] : formatosDe(i)).filter(f => m[i.id + '.' + f]);
+  if (!fs.length) return false;
+  const bytes = fs.reduce((s, f) => s + (m[i.id + '.' + f].bytes || 0), 0);
+  const quais = fs.length > 1 || formatosDe(i).length > 1 ? ' (' + fs.map(f => NOME_FM[f]).join(' + ') + ')' : '';
+  if (perguntar && !confirm('Remover "' + i.ti + '"' + quais + ' do tablet?\n\nIsso libera ' + fmtMB(bytes) + ' de espaço. O título continua na sua biblioteca e você pode baixar de novo quando quiser.')) return false;
+  if (atual && atual.id === i.id && fs.includes('a')) encerraAudio();      // libera o arquivo que está em uso
+  const cache = await caches.open(CACHE_OFF);
+  for (const f of fs) { try { await cache.delete(chaveOff(i, f)); } catch (e) {} delete m[i.id + '.' + f]; }
+  guarda('off', m);
+  pintaOff(i.id); baixadosHome(); toast('Removido do tablet: ' + i.ti + ' · liberou ' + fmtMB(bytes));
   return true;
 }
 function cliqueOff(i) {
   if (!i) return;
   if (emDownload[i.id]) { emDownload[i.id].ctrl.abort(); return; }
-  if (estaBaixado(i)) removeBaixado(i); else baixa(i);
+  if (estaBaixado(i)) removeBaixado(i, null); else baixa(i);
 }
-async function doCache(i) { try { return await (await caches.open(CACHE_OFF)).match(chaveOff(i)); } catch (e) { return null; } }
-async function dadosLivro(i) {                         // ArrayBuffer do livro: do tablet se baixado; senão, do OneDrive
-  if (estaBaixado(i)) {
-    const r = await doCache(i);
+function cliqueOffFm(i, fm) {
+  if (!i) return;
+  if (emDownload[i.id]) { emDownload[i.id].ctrl.abort(); return; }
+  if (estaBaixado(i, fm)) removeBaixado(i, fm); else baixa(i, fm);
+}
+async function doCache(i, fm) { try { return await (await caches.open(CACHE_OFF)).match(chaveOff(i, fm)); } catch (e) { return null; } }
+async function dadosLivro(i, fm) {                      // ArrayBuffer do livro: do tablet se baixado; senão, do OneDrive
+  if (estaBaixado(i, fm)) {
+    const r = await doCache(i, fm);
     if (r) return r.arrayBuffer();
-    const m = baixadosMapa(); delete m[i.id]; guarda('off', m);          // sumiu do armazenamento: corrige o registro
+    const m = baixadosMapa(); delete m[i.id + '.' + fm]; guarda('off', m);      // sumiu do armazenamento: corrige o registro
   }
   if (!navigator.onLine) throw new Error('Sem internet. Baixe o título antes (ícone ↓) para ler offline.');
-  return (await graph(caminhoItem('livros/' + i.f) + ':/content')).arrayBuffer();
+  return (await graph(caminhoItem('livros/' + arquivoDe(i, fm)) + ':/content')).arrayBuffer();
 }
-async function reconciliaBaixados() {                  // confere se o que está registrado como baixado existe mesmo
+async function reconciliaBaixados() {                  // confere o registro de baixados com o armazenamento (e migra o formato antigo)
   try {
-    const ks = new Set((await (await caches.open(CACHE_OFF)).keys()).map(r => new URL(r.url).pathname.split('/').slice(-2).join('/')));
+    const cache = await caches.open(CACHE_OFF);
     const m = baixadosMapa(); let mudou = false;
-    Object.keys(m).forEach(id => { if (!ks.has('offline/' + id)) { delete m[id]; mudou = true; } });
+    for (const k of Object.keys(m)) {                   // registros antigos "id" -> "id.formato"
+      if (k.includes('.')) continue;
+      const i = porId(k), fm = i ? formatosDe(i)[0] : null, r = await cache.match('offline/' + k);
+      if (i && r) { await cache.put(chaveOff(i, fm), r); m[k + '.' + fm] = m[k]; }
+      await cache.delete('offline/' + k); delete m[k]; mudou = true;
+    }
+    const ks = new Set((await cache.keys()).map(r => new URL(r.url).pathname.split('/').slice(-2).join('/')));
+    Object.keys(m).forEach(k => { if (!ks.has('offline/' + k)) { delete m[k]; mudou = true; } });
     if (mudou) guarda('off', m);
   } catch (e) {}
 }
 function baixadosHome() { if (!$('#home').hidden) desenhaBaixados(); }
 async function desenhaBaixados() {
   const m = baixadosMapa(), box = $('#baixadosSec');
-  const itens = Object.keys(m).map(porId).filter(Boolean).sort((a, b) => (m[b.id].quando || 0) - (m[a.id].quando || 0));
-  const total = itens.reduce((s, i) => s + (m[i.id].bytes || 0), 0);
+  const itens = catalogo.filter(i => estaBaixado(i)).sort((a, b) => Math.max(0, ...formatosDe(b).map(f => (m[b.id + '.' + f] || {}).quando || 0)) - Math.max(0, ...formatosDe(a).map(f => (m[a.id + '.' + f] || {}).quando || 0)));
+  const total = itens.reduce((s, i) => s + bytesBaixados(i), 0);
   let uso = '';
   try { if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); uso = ' · o app ocupa ' + fmtMB(e.usage || 0) + ' no tablet'; } } catch (e) {}
   if (!itens.length) {
@@ -248,16 +286,40 @@ async function desenhaBaixados() {
       '<div class="vazio-ini">Nenhum título baixado ainda. Toque no ícone <b>↓</b> de um livro ou audiobook (na capa, ao lado do play, ou dentro do leitor) para guardá-lo no tablet e usar <b>sem internet</b>. Quando não quiser mais, é só remover aqui e o espaço é liberado.</div>';
     return;
   }
+  const status = i => formatosDe(i).filter(f => m[i.id + '.' + f]).map(f => (formatosDe(i).length > 1 ? NOME_FM[f] + ' ' : '') + fmtMB(m[i.id + '.' + f].bytes || 0)).join(' + ') + ' no tablet';
   box.innerHTML = '<div class="secao"><h2>Baixados no tablet</h2><button class="sorteia" data-off-todos="1">Remover todos</button></div>' +
     '<p class="resumo-off">' + itens.length + (itens.length === 1 ? ' título' : ' títulos') + ' · ' + fmtMB(total) + uso + '. Toque no ✓ de um título para removê-lo.</p>' +
-    '<div class="continua">' + itens.map((i, n) => item(i, n * 40, fmtMB(m[i.id].bytes || 0) + ' no tablet')).join('') + '</div>';
+    '<div class="continua">' + itens.map((i, n) => item(i, n * 40, status(i))).join('') + '</div>';
 }
 async function removeTodos() {
-  const m = baixadosMapa(), itens = Object.keys(m).map(porId).filter(Boolean);
+  const itens = catalogo.filter(i => estaBaixado(i));
   if (!itens.length) return;
-  if (!confirm('Remover todos os ' + itens.length + ' títulos baixados do tablet?\nIsso libera ' + fmtMB(itens.reduce((s, i) => s + (m[i.id].bytes || 0), 0)) + '. A biblioteca no OneDrive não é afetada.')) return;
-  for (const i of itens) await removeBaixado(i, false);
+  if (!confirm('Remover todos os ' + itens.length + ' títulos baixados do tablet?\nIsso libera ' + fmtMB(itens.reduce((s, i) => s + bytesBaixados(i), 0)) + '. A biblioteca no OneDrive não é afetada.')) return;
+  for (const i of itens) await removeBaixado(i, null, false);
   toast('Todos os downloads foram removidos');
+}
+
+/* ---------- escolha entre EPUB e PDF; preferências ---------- */
+let escolhaItem = null;
+function escolheFormato(i) { escolhaItem = i; $('#escLembrar').checked = false; renderEscolha(); $('#escolhe').hidden = false; }
+function renderEscolha() {
+  const i = escolhaItem; if (!i) return;
+  $('#escCapa').innerHTML = foto(i); $('#escTitulo').textContent = i.ti; $('#escAutor').textContent = i.au || '';
+  const info = { e: ['EPUB', 'Texto que se ajusta à tela, com letra e fundo à sua escolha'], p: ['PDF', 'Páginas originais, como no livro impresso'] };
+  $('#escOpcoes').innerHTML = formatosDe(i).map(f => '<div class="esc-op" data-escolhe="' + f + '" role="button"><span class="esc-t"><b>' + info[f][0] + '</b><small>' + info[f][1] + '</small>' +
+    '<em>' + (estaBaixado(i, f) ? '✓ guardado no tablet' : 'precisa de internet') + '</em></span>' + btnOffFm(i, f) + '</div>').join('');
+}
+function fechaModais() { $('#escolhe').hidden = true; $('#menu').hidden = true; escolhaItem = null; }
+function abreMenu() { renderMenu(); $('#menu').hidden = false; }
+function renderMenu() {
+  const pref = le('fmtpref') || '';
+  const itens = catalogo.filter(i => estaBaixado(i)), total = itens.reduce((s, i) => s + bytesBaixados(i), 0);
+  $('#menuCorpo').innerHTML =
+    '<h4>Quando o título tiver EPUB e PDF</h4><div class="seg">' + [['', 'Perguntar'], ['e', 'Preferir EPUB'], ['p', 'Preferir PDF']].map(([v, r]) => '<button data-pref="' + v + '" class="' + (pref === v ? 'on' : '') + '">' + r + '</button>').join('') + '</div>' +
+    '<h4>Armazenamento do tablet</h4><p>' + itens.length + (itens.length === 1 ? ' título baixado' : ' títulos baixados') + ' · ' + fmtMB(total) + '</p>' +
+    '<button class="menu-b" data-menu="baixados">Ver baixados</button>' + (itens.length ? '<button class="menu-b" data-menu="limpar">Remover todos os downloads</button>' : '') +
+    (conta ? '<h4>Conta</h4><p>' + esc(conta.username) + '</p><button class="menu-b sair" data-menu="sair">Sair da conta</button>' : '') +
+    '<p class="versao">Minha Biblioteca · versão ' + VERSAO + '</p>';
 }
 
 /* ---------- telas ---------- */
@@ -325,9 +387,24 @@ new IntersectionObserver(es => { if (es[0].isIntersecting && !$('#estante').hidd
 /* ---------- eventos ---------- */
 document.addEventListener('click', e => {
   const t = e.target;
+  const bf = t.closest('[data-off-fm]');
+  if (bf) { e.preventDefault(); e.stopPropagation(); vibra(); const k = bf.dataset.offFm, p = k.lastIndexOf('.'); cliqueOffFm(porId(k.slice(0, p)), k.slice(p + 1)); return; }
   const bo = t.closest('[data-off]');
   if (bo) { e.preventDefault(); e.stopPropagation(); vibra(); cliqueOff(porId(bo.dataset.off)); return; }
   if (t.closest('[data-off-todos]')) { vibra(); removeTodos(); return; }
+  if (t.closest('[data-fecha]')) { fechaModais(); return; }
+  const eo = t.closest('[data-escolhe]');
+  if (eo && escolhaItem) { vibra(); const i = escolhaItem, f = eo.dataset.escolhe; if ($('#escLembrar').checked) guarda('fmtpref', f); fechaModais(); abre(i, f); return; }
+  const pf = t.closest('[data-pref]');
+  if (pf) { guarda('fmtpref', pf.dataset.pref); renderMenu(); toast(pf.dataset.pref ? 'Vou abrir em ' + NOME_FM[pf.dataset.pref] + ' quando houver as duas versões' : 'Vou perguntar quando houver as duas versões'); return; }
+  const mn = t.closest('[data-menu]');
+  if (mn) {
+    const a = mn.dataset.menu;
+    if (a === 'baixados') { fechaModais(); vaiPara('home'); setTimeout(() => $('#baixadosSec').scrollIntoView({ behavior: 'smooth', block: 'start' }), 250); }
+    else if (a === 'limpar') { fechaModais(); removeTodos(); }
+    else if (a === 'sair') { fechaModais(); if (confirm('Sair da conta ' + conta.username + '?')) clienteMsal.logoutRedirect({ account: conta }); }
+    return;
+  }
   const ir = t.closest('[data-ir]');
   if (ir) {
     vibra(); const dest = ir.dataset.ir;
@@ -337,7 +414,7 @@ document.addEventListener('click', e => {
   }
   if (t.closest('#nav .ini')) { vibra(); vaiPara('home'); return; }
   const so = t.closest('[data-sort]'); if (so) { vibra(); sugestoes(so.dataset.sort); return; }
-  const it = t.closest('.card, .linha, .caixa'); if (it) { vibra(); abre(porId(it.dataset.id)); }
+  const it = t.closest('.card, .linha, .caixa'); if (it) { vibra(); const i = porId(it.dataset.id); abre(i, it.closest('#continuar') ? ultFm(i) : undefined); }
 });
 function vaiPara(destino, manterBusca) {
   aba = destino;
@@ -351,16 +428,30 @@ $('#q').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(
 $('#limpa').onclick = () => { $('#q').value = ''; consulta = ''; desenha(); };
 $('#marca').onclick = () => vaiPara('home');
 $('#btnConta').onclick = () => {
-  if (DEMO) return alert('Modo demonstração: o login Microsoft será ativado depois do registro no Azure.');
-  if (conta) { if (confirm('Sair da conta ' + conta.username + '?')) clienteMsal.logoutRedirect({ account: conta }); }
-  else clienteMsal.loginRedirect({ scopes: ESCOPOS });
+  if (!DEMO && !conta) { clienteMsal.loginRedirect({ scopes: ESCOPOS }); return; }
+  abreMenu();
 };
 
-function abre(i) {
+function abre(i, fm) {
   if (!i) return;
   if (DEMO) { alert('Modo demonstração: os arquivos ainda não estão ligados ao OneDrive.\n\n' + i.ti + (i.au ? '\n' + i.au : '')); return; }
-  if (!navigator.onLine && !estaBaixado(i)) { alert('Sem internet agora, e este título ainda não foi baixado.\n\nQuando estiver no Wi-Fi, toque no ícone ↓ do título para baixá-lo e poder abrir offline.'); return; }
-  if (i.t === 'a') tocaAudio(i); else if (i.fm === 'e') abreEpub(i); else abrePdf(i);
+  if (i.t === 'a') {
+    if (!navigator.onLine && !estaBaixado(i, 'a')) { alert('Sem internet agora, e este audiobook ainda não foi baixado.\n\nQuando estiver no Wi-Fi, toque no ícone ↓ para baixá-lo e poder ouvir offline.'); return; }
+    return tocaAudio(i);
+  }
+  const fs = formatosDe(i);
+  if (!fm) {
+    if (fs.length === 1) fm = fs[0];
+    else if (!navigator.onLine) {                                     // sem internet: usa a versão que está no tablet
+      const gs = fs.filter(f => estaBaixado(i, f)); fm = gs.length ? (gs.includes(fmPadrao(i)) ? fmPadrao(i) : gs[0]) : null;
+    } else {
+      const pref = le('fmtpref');
+      if (pref && fs.includes(pref)) fm = pref; else return escolheFormato(i);
+    }
+  }
+  if (!fm || (!navigator.onLine && !estaBaixado(i, fm))) { alert('Sem internet agora, e este título ainda não foi baixado.\n\nQuando estiver no Wi-Fi, toque no ícone ↓ do título para baixá-lo e poder abrir offline.'); return; }
+  guarda('ult:' + i.id, fm);
+  if (fm === 'e') abreEpub(i); else abrePdf(i);
 }
 
 /* ---------- player de áudio ---------- */
@@ -378,7 +469,7 @@ async function urlAudio(i) {
 let blobAtual = null;
 async function fonteAudio(i) {                       // do tablet (se baixado) ou streaming do OneDrive
   if (blobAtual) { URL.revokeObjectURL(blobAtual); blobAtual = null; }
-  if (estaBaixado(i)) { const r = await doCache(i); if (r) { blobAtual = URL.createObjectURL(await r.blob()); return blobAtual; } }
+  if (estaBaixado(i, 'a')) { const r = await doCache(i, 'a'); if (r) { blobAtual = URL.createObjectURL(await r.blob()); return blobAtual; } }
   if (!navigator.onLine) throw new Error('Sem internet. Baixe o audiobook antes para ouvir offline.');
   return urlAudio(i);
 }
@@ -425,7 +516,7 @@ au.addEventListener('ended', () => {
   if (!atual) return;
   guarda('prog:' + atual.id, { t: 0, quando: Date.now() });
   const i = atual;
-  if (estaBaixado(i)) setTimeout(() => { if (confirm('Você terminou "' + i.ti + '".\n\nRemover do tablet para liberar espaço?')) removeBaixado(i, false); }, 600);
+  if (estaBaixado(i, 'a')) setTimeout(() => { if (confirm('Você terminou "' + i.ti + '".\n\nRemover do tablet para liberar espaço?')) removeBaixado(i, 'a', false); }, 600);
 });
 function salvaProgresso(forca) {
   if (!atual || !au.currentTime) return;
@@ -475,12 +566,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 let pdf = null, pdfItem = null, zoom = 1, observador = null, ratio = 1.41, ultPag = 0;
 
 async function abrePdf(i) {
-  pdfItem = i; ultPag = 0; $('#lOffBox').innerHTML = btnOff(i); $('#leitor').hidden = false; document.body.style.overflow = 'hidden';
+  pdfItem = i; ultPag = 0; $('#lOffBox').innerHTML = btnOffFm(i, 'p'); $('#leitor').hidden = false; document.body.style.overflow = 'hidden';
   $('#lTitulo').textContent = i.ti; $('#lPag').textContent = i.au || ''; $('#lPaginas').innerHTML = ''; $('#lProg').style.width = '0';
   $('#lCarrega').hidden = false; $('#lCarrega').textContent = 'Carregando…';
   zoom = le('zoom') || 1;
   try {
-    pdf = await pdfjsLib.getDocument({ data: await dadosLivro(i) }).promise;
+    pdf = await pdfjsLib.getDocument({ data: await dadosLivro(i, 'p') }).promise;
     const v = (await pdf.getPage(1)).getViewport({ scale: 1 }); ratio = v.height / v.width;
     $('#lCarrega').hidden = true;
     montaPaginas();
@@ -539,13 +630,13 @@ async function garanteEpubJs() {
   await carregaScript('https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js');
 }
 async function abreEpub(i, urlLocal) {
-  eItem = i; $('#eOffBox').innerHTML = btnOff(i); $('#leitorE').hidden = false; document.body.style.overflow = 'hidden';
+  eItem = i; $('#eOffBox').innerHTML = btnOffFm(i, 'e'); $('#leitorE').hidden = false; document.body.style.overflow = 'hidden';
   $('#eTitulo').textContent = i.ti; $('#eCap').textContent = i.au || ''; $('#ePct').textContent = '0%'; $('#eProg').style.width = '0';
   $('#eCarrega').hidden = false; $('#eCarrega').textContent = 'Carregando…'; $('#eIndice').hidden = true;
   $('#leitorE').classList.remove('imersivo'); $('#leitorE').dataset.tema = eTema;
   try {
     await garanteEpubJs();
-    const dados = urlLocal ? await (await fetch(urlLocal)).arrayBuffer() : await dadosLivro(i);
+    const dados = urlLocal ? await (await fetch(urlLocal)).arrayBuffer() : await dadosLivro(i, 'e');
     eLivro = ePub(dados);
     eRend = eLivro.renderTo('eArea', { width: '100%', height: '100%', flow: 'paginated', spread: 'none', minSpreadWidth: 99999 });
     Object.entries(TEMAS_E).forEach(([k, t]) => eRend.themes.register(k, {
@@ -614,7 +705,7 @@ document.addEventListener('keydown', e => {
 
 /* ---------- partida ---------- */
 (async function main() {
-  $('#versao').textContent = 'Minha Biblioteca · versão 7';
+  $('#versao').textContent = 'Minha Biblioteca · versão ' + VERSAO;
   if ('serviceWorker' in navigator) {
     const tinhaControle = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -631,8 +722,8 @@ document.addEventListener('keydown', e => {
       aviso('<b>Bem-vindo!</b> Toque no botão redondo no canto superior para entrar com sua conta Microsoft e abrir a biblioteca.');
       return;
     }
-    await reconciliaBaixados();
     await carregaCatalogo();
+    await reconciliaBaixados();
     if (DEMO) aviso('<b>Modo demonstração.</b> Esta é a lista real dos seus títulos; os arquivos serão ligados ao OneDrive depois do registro no Azure.');
     desenha();
   } catch (e) {
